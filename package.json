@@ -1,0 +1,37 @@
+{
+  "name": "lscache",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "react-scripts start",
+    "eject": "react-scripts eject",
+    "watch-ts": "tsc -w",
+    "type-check": "tsc --noEmit && eslint --cache './src/*'",
+    "build": "rm -r lib && npm run build-types && npm run build-js-for-production",
+    "build-types": "tsc --emitDeclarationOnly",
+    "build-js-for-production": "babel src --out-dir lib --extensions \".ts,.js\" --source-maps inline"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "index.js",
+    "index.d.ts"
+  ],
+  "dependencies": {
+    "babel-polyfill": "^6.26.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.0.0",
+    "@babel/core": "^7.0.0",
+    "@babel/plugin-proposal-class-properties": "^7.0.0",
+    "@babel/plugin-proposal-object-rest-spread": "^7.0.0",
+    "@babel/preset-env": "^7.0.0",
+    "@babel/preset-typescript": "^7.0.0",
+    "typescript": "^3.0.1",
+    "typescript-eslint-parser": "^18.0.0",
+    "cross-env": "^5.2.0",
+    "eslint": "^5.5.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-plugin-import": "^2.14.0"
+  }
+}
