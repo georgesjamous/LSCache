@@ -13,8 +13,8 @@ export const CACHE_SUFFIX = "-toc";
 class LSCache {
   prefix: string;
   suffix: string;
-  isStorageSupported: boolean | undefined;
-  isJSONSupported: boolean | undefined;
+  canStoreObject: boolean;
+  canUseJson: boolean;
   forceByDefault: boolean;
   shouldHash: boolean;
   constructor({
@@ -23,15 +23,19 @@ class LSCache {
     forceByDefault = false,
     hash = false
   }: {
+    /** Overrides CACHE_PREFIX */
     prefix: string;
+    /** Overrides CACHE_SUFFIX */
     suffix: string;
+    /** Will clear old stored objects in favor of new ones when cache is full */
     forceByDefault: boolean;
+    /** Wether to hash objects or not */
     hash: boolean;
   }) {
     this.prefix = assignValue(CACHE_PREFIX, prefix);
     this.suffix = assignValue(CACHE_SUFFIX, suffix);
-    this.isStorageSupported = undefined;
-    this.isJSONSupported = undefined;
+    this.canStoreObject = isStorageSupported();
+    this.canUseJson = isJSONSupported();
     this.forceByDefault = forceByDefault;
     this.shouldHash = hash;
   }
@@ -39,26 +43,6 @@ class LSCache {
    * Returns the number of millis since the epoch.
    */
   static now = (): number => Math.floor(new Date().getTime());
-  /**
-   * Determines if localStorage is supported in the browser.
-   */
-  get canStoreObject(): boolean {
-    if (this.isStorageSupported !== undefined) {
-      return this.isStorageSupported;
-    }
-    this.isStorageSupported = isStorageSupported();
-    return this.isStorageSupported;
-  }
-  /**
-   * Determines native JSON (de-)serialization is supported in the browser.
-   */
-  get canUseJson(): boolean {
-    if (this.isJSONSupported !== undefined) {
-      return this.isJSONSupported;
-    }
-    this.isJSONSupported = isJSONSupported();
-    return this.isJSONSupported;
-  }
   /**
    * Returns the full string of the key corresponsing to the cache time.
    */
@@ -96,7 +80,7 @@ class LSCache {
       _object = object;
     } else {
       // we need to serialize
-      if (this.isJSONSupported === false) {
+      if (this.canUseJson === false) {
         return false;
       }
       // attemp to serialize
@@ -107,47 +91,48 @@ class LSCache {
         return false;
       }
     }
-    // generate storage the key
+    // generate the storage the key
     const _key = this.generateItemKey(key);
-    if (this.setRoutine(_key, _object, force === true) === false) {
+    const _force = force === true;
+    if (this.setRoutine(_key, _object, _force) === false) {
       return false;
     }
     const _tOCKey = this.generateTimeOfCacheKey(key);
     const _time = LSCache.now().toString();
-    if (this.setRoutine(_tOCKey, _time, force === true) === false) {
+    if (this.setRoutine(_tOCKey, _time, _force) === false) {
       // could not store time
-      // abort the operation
+      // abort the operation and delete the object
       localStorage.removeItem(_key);
       return false;
     }
     return true;
   }
   /**
-   * If an object was stored with an expiration date.
-   * maxAge will be ignored.
+   * Get an object with expiration date.
+   * Will return null otherwise.
    * @param key the object key
    * @param maxAge max time age in millis
    */
-  get(key: string, maxAge: number): any {
+  get(key: string, maxAge: number): any | null {
     if (this.canStoreObject === false) {
-      return undefined;
+      return null;
     }
     const _key = this.generateItemKey(key);
     const _object = localStorage.get(_key);
     if (!_object) {
-      return undefined;
+      return null;
     }
     // check time
-    const tocKey = this.generateTimeOfCacheKey(key);
-    let timeOfCache: string | null = localStorage.getItem(tocKey);
+    const tOCKey = this.generateTimeOfCacheKey(key);
+    let timeOfCache: string | null = localStorage.getItem(tOCKey);
     if (timeOfCache === null) {
-      return undefined;
+      return null;
     }
     const now = LSCache.now();
     if (parseInt(timeOfCache) - now > maxAge) {
-      return undefined;
+      return null;
     }
-    if (this.isJSONSupported) {
+    if (this.canUseJson) {
       try {
         return JSON.parse(_object);
       } catch (e) {
@@ -159,7 +144,7 @@ class LSCache {
   }
   /**
    * Save group of objects to local storage.
-   * Either thei all fail, or all succeed.
+   * Either they all fail, or all succeed.
    * @param objects the objects to cache
    * @param force override 'forceByDefault'
    */
@@ -173,13 +158,14 @@ class LSCache {
     return Object.keys(objects).every((key, index, array) => {
       const result = this.set(key, objects[key], force);
       if (result === false) {
-        // rollback by removing success
+        // rollback by removing inserted items
         for (let i = index; index > -1; i--) {
           const _key = array[i];
           localStorage.removeItem(_key);
         }
         return false;
       }
+      return true;
     });
   }
   /**
