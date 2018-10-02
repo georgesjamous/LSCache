@@ -1,2 +1,2 @@
 export * from "./lib/index";
-export as namespace SRApi;
+export as namespace SRApi
